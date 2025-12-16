@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_overlay_window/flutter_overlay_window.dart';
 import 'package:flutter_volume_controller/flutter_volume_controller.dart';
@@ -7,7 +8,7 @@ void main() {
 }
 
 /// =====================
-/// MAIN APP (Launcher UI)
+/// MAIN APP
 /// =====================
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
@@ -32,16 +33,15 @@ class _HomePageState extends State<HomePage> {
   bool running = false;
 
   Future<void> startOverlay() async {
-    final granted = await FlutterOverlayWindow.isPermissionGranted();
-    if (!granted) {
+    if (!await FlutterOverlayWindow.isPermissionGranted()) {
       await FlutterOverlayWindow.requestPermission();
       return;
     }
 
     await FlutterOverlayWindow.showOverlay(
       enableDrag: true,
-      width: 70,
-      height: 70,
+      width: 48,
+      height: 48,
       alignment: OverlayAlignment.centerRight,
       flag: OverlayFlag.defaultFlag,
       visibility: NotificationVisibility.visibilityPublic,
@@ -69,9 +69,6 @@ class _HomePageState extends State<HomePage> {
           style: ElevatedButton.styleFrom(
             backgroundColor: running ? Colors.redAccent : Colors.deepOrange,
             padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 16),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(30),
-            ),
           ),
           child: Text(
             running ? "Stop Floating Button" : "Start Floating Button",
@@ -84,7 +81,7 @@ class _HomePageState extends State<HomePage> {
 }
 
 /// =====================
-/// OVERLAY ENTRY POINT
+/// OVERLAY ENTRY
 /// =====================
 @pragma("vm:entry-point")
 void overlayMain() {
@@ -116,6 +113,7 @@ class FloatingOverlay extends StatefulWidget {
 class _FloatingOverlayState extends State<FloatingOverlay> {
   bool expanded = false;
   double volume = 0.5;
+  Timer? autoHideTimer;
 
   @override
   void initState() {
@@ -124,38 +122,41 @@ class _FloatingOverlayState extends State<FloatingOverlay> {
         .then((v) => setState(() => volume = v ?? 0.5));
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return expanded ? expandedUI() : collapsedBubble();
+  void startAutoHideTimer() {
+    autoHideTimer?.cancel();
+    autoHideTimer = Timer(const Duration(seconds: 5), collapseAndSnap);
   }
 
-  /// 🔵 COLLAPSED FLOATING BUTTON
+  @override
+  Widget build(BuildContext context) {
+    return expanded ? expandedPanel() : collapsedBubble();
+  }
+
+  /// 🟠 TINY CHAT-HEAD STYLE BUTTON
   Widget collapsedBubble() {
     return Material(
       color: Colors.transparent,
       child: Center(
         child: GestureDetector(
           onTap: () async {
-            await FlutterOverlayWindow.resizeOverlay(320, 360, true);
+            await FlutterOverlayWindow.resizeOverlay(300, 240, false);
+            startAutoHideTimer();
             setState(() => expanded = true);
           },
           child: Container(
-            width: 70,
-            height: 70,
+            width: 48,
+            height: 48,
             decoration: BoxDecoration(
               color: Colors.deepOrange,
               shape: BoxShape.circle,
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.3),
-                  blurRadius: 12,
-                ),
+              boxShadow: const [
+                BoxShadow(color: Colors.black26, blurRadius: 8),
               ],
             ),
             child: const Icon(
               Icons.volume_up,
+              size: 22,
               color: Colors.white,
-              size: 32,
             ),
           ),
         ),
@@ -163,61 +164,63 @@ class _FloatingOverlayState extends State<FloatingOverlay> {
     );
   }
 
-  /// 🟠 EXPANDED PANEL (tap outside to close)
-  Widget expandedUI() {
+  /// 🫧 GLASS-LIKE STATIC PANEL
+  Widget expandedPanel() {
     return Material(
       color: Colors.transparent,
       child: Stack(
         children: [
-          // 👇 TAP ANYWHERE OUTSIDE → COLLAPSE + SNAP
+          // Tap anywhere outside
           GestureDetector(
             onTap: collapseAndSnap,
             child: Container(color: Colors.transparent),
           ),
 
-          // PANEL
           Center(
             child: Container(
               width: 300,
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(22),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.25),
-                    blurRadius: 15,
-                  ),
+                color: Colors.white.withOpacity(0.92),
+                borderRadius: BorderRadius.circular(24),
+                boxShadow: const [
+                  BoxShadow(color: Colors.black26, blurRadius: 20),
                 ],
               ),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Text(
-                    "Volume Control",
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.deepOrange,
-                    ),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text(
+                        "Volume Control",
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.deepOrange,
+                        ),
+                      ),
+                      GestureDetector(
+                        onTap: collapseAndSnap,
+                        child: const Icon(Icons.close,
+                            color: Colors.deepOrange),
+                      ),
+                    ],
                   ),
                   const SizedBox(height: 20),
-                  Icon(
-                    Icons.volume_up,
-                    size: 40,
-                    color: Colors.deepOrange.shade400,
-                  ),
+                  Icon(Icons.volume_up,
+                      size: 36, color: Colors.deepOrange),
                   const SizedBox(height: 10),
                   Text(
                     "${(volume * 100).round()}%",
                     style: const TextStyle(
-                      fontSize: 28,
-                      fontWeight: FontWeight.bold,
-                    ),
+                        fontSize: 26, fontWeight: FontWeight.bold),
                   ),
                   Slider(
                     value: volume,
                     onChanged: (v) {
+                      startAutoHideTimer();
                       setState(() => volume = v);
                       FlutterVolumeController.setVolume(v);
                     },
@@ -231,9 +234,10 @@ class _FloatingOverlayState extends State<FloatingOverlay> {
     );
   }
 
-  /// 🔒 COLLAPSE + SNAP TO EDGE
+  /// 📍 COLLAPSE + SNAP TO EDGE
   Future<void> collapseAndSnap() async {
-    await FlutterOverlayWindow.resizeOverlay(70, 70, true);
+    autoHideTimer?.cancel();
+    await FlutterOverlayWindow.resizeOverlay(48, 48, true);
     await FlutterOverlayWindow.updateOverlayAlignment(
       OverlayAlignment.centerRight,
     );
