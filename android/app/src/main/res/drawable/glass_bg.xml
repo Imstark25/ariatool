@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<shape xmlns:android="http://schemas.android.com/apk/res/android">
+    <solid android:color="#F2FFFFFF" /> <!-- Keep high opacity for visibility, but maybe slightly less? The user image looked very solid. Let's try #DDFFFFFF for more glass feel, but the user complained "Output was not match". The reference had a clean look. The uploaded screenshot shows it overlapping text. -->
+    <!-- Let's try a very subtle background to match the 'clean' look. -->
+    <solid android:color="#F5F5F5" /> <!-- Actually, let's use a solid off-white with high opacity to avoid seeing the 'Native Volume Overlay' text behind it messily. -->
+    <corners android:radius="28dp" />
+    <padding android:left="0dp" android:top="0dp" android:right="0dp" android:bottom="0dp" />
+    <!-- Add a stroke for definition -->
+    <stroke android:width="1dp" android:color="#FFFFFF" />
+</shape>
