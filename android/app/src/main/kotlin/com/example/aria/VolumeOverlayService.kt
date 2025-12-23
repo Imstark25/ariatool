@@ -5,48 +5,144 @@ import android.content.Intent
 import android.graphics.PixelFormat
 import android.os.IBinder
 import android.view.Gravity
+import android.view.LayoutInflater
+import android.view.View
 import android.view.WindowManager
+import android.widget.FrameLayout
+import kotlin.math.abs
 
 class VolumeOverlayService : Service() {
 
     private lateinit var windowManager: WindowManager
-    private lateinit var overlayView: VolumeView
+    
+    // Views
+    private var overlayView: VolumeView? = null
+    private var floatingButton: FloatingButton? = null
+    private var removeView: View? = null
+    
+    // Params
+    private lateinit var buttonParams: WindowManager.LayoutParams
+    private lateinit var overlayParams: WindowManager.LayoutParams
+    private lateinit var removeParams: WindowManager.LayoutParams
 
     override fun onCreate() {
         super.onCreate()
-
         windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
-        overlayView = VolumeView(this)
-
-        val params = WindowManager.LayoutParams(
-            300,
-            1200, // Adjusted height to accommodate 500dp + padding if needed, assuming pixels here. 500dp ≈ 1300px on xxxhdpi. Let's use WRAP_CONTENT or specific dimensions.
-                  // The user provided code uses 300, 500 in LayoutParams. I'll stick to their snippet but assume pixels (which might be small on high dpi). 
-                  // Android WindowManager.LayoutParams uses pixels. 300x500 pixels is very small on modern phones.
-                  // I will try to convert DP to PX or just use WRAP_CONTENT if possible, but WindowManager needs explicit size or MATCH/WRAP.
-                  // Let's stick to the user's snippet initially but maybe increase it or using WRAP_CONTENT if the view measures itself.
+        
+        initParams()
+        initRemoveView()
+        
+        // Start by showing the button
+        showFloatingButton()
+    }
+    
+    private fun initParams() {
+        // Overlay Params (Right side, aligned vertically by logic)
+        overlayParams = WindowManager.LayoutParams(
+            WindowManager.LayoutParams.WRAP_CONTENT,
+            WindowManager.LayoutParams.WRAP_CONTENT,
             WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
-                    WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS, // Added flags for better behavior
+                    WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
             PixelFormat.TRANSLUCENT
         )
-        
-        // Let's use WRAP_CONTENT for size to respect the XML layout
-        params.width = WindowManager.LayoutParams.WRAP_CONTENT
-        params.height = WindowManager.LayoutParams.WRAP_CONTENT
+        overlayParams.gravity = Gravity.TOP or Gravity.END
+        overlayParams.x = 20
 
-        params.gravity = Gravity.END or Gravity.CENTER_VERTICAL
-        // Offset from edge
-        params.x = 20
+        // Button Params (Top-Left init, draggable)
+        buttonParams = WindowManager.LayoutParams(
+            WindowManager.LayoutParams.WRAP_CONTENT,
+            WindowManager.LayoutParams.WRAP_CONTENT,
+            WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                    WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
+            PixelFormat.TRANSLUCENT
+        )
+        buttonParams.gravity = Gravity.TOP or Gravity.START
+        buttonParams.x = 50
+        buttonParams.y = 200
         
-        windowManager.addView(overlayView, params)
+        // Remove View Params (Bottom Center)
+        removeParams = WindowManager.LayoutParams(
+            WindowManager.LayoutParams.WRAP_CONTENT,
+            WindowManager.LayoutParams.WRAP_CONTENT,
+            WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                    WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
+            PixelFormat.TRANSLUCENT
+        )
+        removeParams.gravity = Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL
+        removeParams.y = 50 // Margin from bottom
+    }
+    
+    private fun initRemoveView() {
+        removeView = LayoutInflater.from(this).inflate(R.layout.remove_view, null)
+        removeView?.visibility = View.GONE
+        windowManager.addView(removeView, removeParams)
+    }
+
+    fun showFloatingButton() {
+        if (overlayView != null) {
+            try { windowManager.removeView(overlayView) } catch (e: Exception) { e.printStackTrace() }
+            overlayView = null
+        }
+
+        if (floatingButton == null) {
+            floatingButton = FloatingButton(this)
+            
+            floatingButton?.setupDragListener(
+                buttonParams, 
+                windowManager, 
+                onClick = { showOverlay() },
+                onDragStart = {
+                    removeView?.visibility = View.VISIBLE
+                },
+                onDragEnd = { rawX, rawY ->
+                    removeView?.visibility = View.GONE
+                    if (isOverRemoveView(rawX, rawY)) {
+                        stopSelf()
+                    }
+                },
+                onDragMove = { rawX, rawY ->
+                    // Optional: Scale remove view if close?
+                }
+            )
+            
+            windowManager.addView(floatingButton, buttonParams)
+        }
+    }
+    
+    private fun isOverRemoveView(x: Float, y: Float): Boolean {
+        // Simple logic: Check if Y is near bottom and X is near center
+        val screenHeight = resources.displayMetrics.heightPixels
+        val screenWidth = resources.displayMetrics.widthPixels
+        
+        // Remove view is at bottom center.
+        // Let's say bottom 150 pixels and center +/- 100 pixels
+        val inBottomZone = y > (screenHeight - 250)
+        val inCenterZone = abs(x - (screenWidth / 2)) < 150
+        
+        return inBottomZone && inCenterZone
+    }
+
+    fun showOverlay() {
+        if (floatingButton != null) {
+            try { windowManager.removeView(floatingButton) } catch (e: Exception) { e.printStackTrace() }
+            floatingButton = null
+        }
+
+        if (overlayView == null) {
+            overlayView = VolumeView(this)
+            overlayParams.y = buttonParams.y
+            windowManager.addView(overlayView, overlayParams)
+        }
     }
 
     override fun onDestroy() {
         super.onDestroy()
-        if (::overlayView.isInitialized) {
-            windowManager.removeView(overlayView)
-        }
+        if (overlayView != null) windowManager.removeView(overlayView)
+        if (floatingButton != null) windowManager.removeView(floatingButton)
+        if (removeView != null) windowManager.removeView(removeView)
     }
 
     override fun onBind(intent: Intent?): IBinder? = null

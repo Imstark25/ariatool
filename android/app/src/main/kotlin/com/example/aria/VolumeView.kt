@@ -1,6 +1,5 @@
 package com.example.aria
 
-import android.app.Service
 import android.content.Context
 import android.media.AudioManager
 import android.util.AttributeSet
@@ -41,7 +40,6 @@ class VolumeView @JvmOverloads constructor(
                     progress,
                     0
                 )
-                // Update ghost text (percentage approximately)
                 if (max > 0) {
                      ghostText.text = "${(progress * 100 / max)}%"
                 }
@@ -51,26 +49,13 @@ class VolumeView @JvmOverloads constructor(
             override fun onStopTrackingTouch(seekBar: SeekBar?) {}
         })
 
-        // Touch outside -> close
-        // Since FrameLayout wraps the content, touching "this" means touching the view itself.
-        // However, the window is WRAP_CONTENT, so you might not be able to touch "outside" within this view.
-        // But if the layout has padding and you tap it, maybe close?
-        // Actually, to simulate "Touch outside -> close", usually the Window is MATCH_PARENT with a transparent background.
-        // But the user requested "Opens exactly where the bubble is... No jitter... System-level performance".
-        // And "Touch anywhere -> close".
-        // If I make the window MATCH_PARENT, it blocks interaction with the rest of the screen.
-        // The user's snippet uses WRAP_CONTENT/specific size and `setOnClickListener { stopSelf() }`.
-        // This implies touching the view *itself* closes it? That seems wrong for a volume control (you want to touch slider).
-        // Maybe they meant touching the background?
-        // I will implement a close button or rely on the user tapping the "background" area of the frame if defined.
-        
+        // Touch outside -> close overlay (return to button)
         val background = findViewById<FrameLayout>(R.id.rootLayout)
         background?.setOnClickListener {
-             // If they click the background (glass), should it close? 
-             // Maybe better to have a close button or auto-hide.
-             // For now I'll follow the snippet: View itself (FrameLayout) has listener.
-             // But SeekBar consumes touch. So clicking space around seekbar closes it.
-             (context as Service).stopSelf()
+             // Logic to switch back to floating button
+             if (context is VolumeOverlayService) {
+                 (context as VolumeOverlayService).showFloatingButton()
+             }
         }
     }
 }
